@@ -4,14 +4,7 @@ An end-to-end AI-powered shopping experience combining Google Gemini 2.5 Compute
 
 **Author:** [Wafae Bakkali](https://www.linkedin.com/in/wafae-bakkali/)
 
-## ✨ Features
-
-- 🔍 **AI-Powered Search**: Natural language product search using Gemini 2.5 Computer Use
-- 👔 **Virtual Try-On**: Multi-item photorealistic try-on with Gemini 2.5 Flash Image (Nano Banana)
-- 🎬 **Video Generation**: Professional 360° product showcase videos with Veo 3.1
-- 🛒 **Complete Shopping Flow**: Search → Select → Try-On → Video → Purchase
-
-## 🏗️ Architecture
+## 🏗️ Overview
 
 ![AI Shopping Assistant Architecture](Architecture.png)
 
