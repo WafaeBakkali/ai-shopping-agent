@@ -2,8 +2,6 @@
 
 An end-to-end AI-powered shopping experience combining Google Gemini 2.5 Computer Use, Gemini 2.5 Flash Image (Nano Banana), and Veo 3.1.
 
-![AI Shopping Assistant Demo](./demo.png)
-
 **Author:** [Wafae Bakkali](https://www.linkedin.com/in/wafae-bakkali/)
 
 ## ✨ Features
@@ -15,7 +13,7 @@ An end-to-end AI-powered shopping experience combining Google Gemini 2.5 Compute
 
 ## 🏗️ Architecture
 
-![AI Shopping Assistant Architecture](./architecture.png)
+![AI Shopping Assistant Architecture](Architecture.png)
 
 The system uses a four-stage pipeline:
 1. **Decompose**: Gemini 2.5 Flash breaks down natural language queries into searchable items
