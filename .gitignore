@@ -1,0 +1,152 @@
+# ===================================
+# Environment Variables & Secrets
+# ===================================
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+service-account*.json
+*_credentials.json
+GEMINI_API_KEY
+backend/.env
+frontend/.env
+
+# ===================================
+# Backend - Python
+# ===================================
+backend/__pycache__/
+backend/*.py[cod]
+backend/*$py.class
+backend/*.so
+backend/.Python
+backend/build/
+backend/develop-eggs/
+backend/dist/
+backend/downloads/
+backend/eggs/
+backend/.eggs/
+backend/lib/
+backend/lib64/
+backend/parts/
+backend/sdist/
+backend/var/
+backend/wheels/
+backend/*.egg-info/
+backend/.installed.cfg
+backend/*.egg
+backend/MANIFEST
+
+# Backend Virtual Environments
+backend/venv/
+backend/env/
+backend/ENV/
+backend/.venv/
+
+# Backend Testing
+backend/.pytest_cache/
+backend/.coverage
+backend/htmlcov/
+backend/.tox/
+
+# ===================================
+# Frontend - React/Node
+# ===================================
+frontend/node_modules/
+frontend/.pnp
+frontend/.pnp.js
+
+# Frontend Testing
+frontend/coverage/
+
+# Frontend Production Build
+frontend/build/
+frontend/.next/
+frontend/out/
+frontend/dist/
+
+# Frontend Environment
+frontend/.env
+frontend/.env.local
+frontend/.env.development.local
+frontend/.env.test.local
+frontend/.env.production.local
+
+# Frontend Logs
+frontend/npm-debug.log*
+frontend/yarn-debug.log*
+frontend/yarn-error.log*
+
+# ===================================
+# Playwright & Browser Automation
+# ===================================
+.playwright/
+playwright/.cache/
+test-results/
+playwright-report/
+screenshots/
+
+# ===================================
+# Temporary Files & Screenshots
+# ===================================
+tmp/
+temp/
+*.tmp
+/tmp/vto_*.jpg
+/tmp/vto_*.png
+temp_*.jpg
+temp_*.png
+
+# ===================================
+# Test Photos (Optional - Uncomment if personal)
+# ===================================
+# test-photos/
+
+# ===================================
+# IDEs and Editors
+# ===================================
+.vscode/
+.idea/
+*.swp
+*.swo
+*.swn
+*~
+.DS_Store
+*.sublime-project
+*.sublime-workspace
+
+# ===================================
+# OS Files
+# ===================================
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+
+# ===================================
+# Logs (Global)
+# ===================================
+*.log
+logs/
+pip-log.txt
+
+# ===================================
+# Videos (Optional - Uncomment to keep videos)
+# ===================================
+*.mp4
+*.avi
+videos/
+
+# ===================================
+# Jupyter Notebook
+# ===================================
+.ipynb_checkpoints
+
+# ===================================
+# pyenv
+# ===================================
+.python-version
