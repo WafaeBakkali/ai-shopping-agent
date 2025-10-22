@@ -4,67 +4,26 @@ An end-to-end AI-powered shopping experience combining Google Gemini 2.5 Compute
 
 **Author:** [Wafae Bakkali](https://www.linkedin.com/in/wafae-bakkali/)
 
+---
 
-### Disclaimer
-
-**This is not an officially supported Google product.**
+### ⚠️ Disclaimer
 
 This project is a technical proof-of-concept for educational purposes. The workflow shown in the demo is intended to illustrate the capabilities of these AI models. The use of a commercial website and its content is for demonstration purposes only.
 
 A real-world application of this technology would require explicit permission from website owners to ensure it aligns with their policies and content usage guidelines.
 
+**This is not an officially supported Google product.**
+
 ---
 
-# AI Shopping Agent with Gemini, Nano Banana, and Veo
+## ✨ Features
 
-This repository contains the code for the blog post: **[Link to your blog post here]**
+- 🔍 **AI-Powered Search**: Natural language product search using Gemini 2.5 Computer Use
+- 👔 **Virtual Try-On**: Multi-item photorealistic try-on with Gemini 2.5 Flash Image (Nano Banana)
+- 🎬 **Video Generation**: Professional 360° product showcase videos with Veo 3.1
+- 🛒 **Complete Shopping Flow**: Search → Select → Try-On → Video → Purchase
 
-This project demonstrates an end-to-end generative AI workflow that combines:
-
-* **Gemini 2.5 Computer Use:** To act as an agent, understanding a prompt and navigating a web UI to collect product data.
-* **Gemini 2.5 Flash Image (Nano Banana):** To generate a photorealistic Virtual Try-On (VTO) image.
-* **Veo 3.1:** To animate the static VTO image into a dynamic 360° video.
-
-## 🚀 Workflow Overview
-
-!
-
-[Image of the workflow diagram from your blog post]
-(path/to/your/image.png)
-
-1.  **Decompose & Search (Gemini 2.5 Computer Use):** The agent takes a natural language prompt (e.g., "outfit for a job interview"), breaks it down, and navigates a website to find matching items.
-2.  **Visualize (Nano Banana):** The user selects their favorite items, and the model generates a new image of them wearing the complete outfit.
-3.  **Animate (Veo 3.1):** The model takes the static VTO image and turns it into a short, 8-second video with realistic camera motion.
-
-## 🛠️ Setup and Installation
-
-1.  **Clone the repository:**
-    ```sh
-    git clone [https://github.com/your-username/your-repo-name.git](https://github.com/your-username/your-repo-name.git)
-    cd your-repo-name
-    ```
-
-2.  **Install dependencies:**
-    *(You must create this `requirements.txt` file by running `pip freeze > requirements.txt` in your environment)*
-    ```sh
-    pip install -r requirements.txt
-    ```
-
-3.  **Add API Keys:**
-    This project requires API access to Google's Generative AI models. Create a `.env` file in the root directory and add your key:
-    ```
-    GOOGLE_API_KEY="your_api_key_here"
-    ```
-
-## ⚡ How to Run
-
-*(This is an example; you should replace it with your actual commands)*
-
-**1. Run the Browsing Agent:**
-
-```sh
-python run_agent.py --prompt "I need a blazer and shirt for a party"
-## 🏗️ Overview
+## 🏗️ Architecture
 
 ![AI Shopping Assistant Architecture](Architecture.png)
 
