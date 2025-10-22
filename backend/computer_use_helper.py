@@ -884,4 +884,3 @@ if __name__ == "__main__":
         enable_query_refinement=True
     )
     print(f"\n✅ Found {len(products)} products")
-
