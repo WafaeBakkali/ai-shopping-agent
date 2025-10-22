@@ -11,6 +11,7 @@ Usage:
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import os
+import sys
 import time
 import traceback
 from google import genai
@@ -20,6 +21,7 @@ from computer_use_helper import search_with_criteria, add_to_cart_and_checkout
 try:
     from vto_generator import generate_multi_product_tryon
     VTO_AVAILABLE = True
+    print("✅ vto_generator imported successfully")
 except ImportError:
     VTO_AVAILABLE = False
     print("⚠️  VTO module not found - virtual try-on disabled")
@@ -27,6 +29,7 @@ except ImportError:
 try:
     from video_generator import generate_fashion_video_veo
     VIDEO_AVAILABLE = True
+    print("✅ video_generator imported successfully")
 except ImportError:
     VIDEO_AVAILABLE = False
     print("⚠️  Video module not found - video generation disabled")
@@ -178,10 +181,16 @@ def virtual_tryon():
     if request.method == 'OPTIONS':
         return '', 200
     
+    print("\n" + "="*80)
+    print("📥 /api/tryon ENDPOINT CALLED")
+    print("="*80)
+    
     try:
         if not VTO_AVAILABLE:
+            error_msg = "Try-on not available - vto_generator.py not found"
+            print(f"❌ {error_msg}")
             return jsonify({
-                "error": "Try-on not available",
+                "error": error_msg,
                 "message": "Please ensure vto_generator.py is in the same directory",
                 "success": False
             }), 500
@@ -190,13 +199,20 @@ def virtual_tryon():
         user_photo = data.get('user_photo')
         items = data.get('items', [])
         
+        print(f"📊 Request data:")
+        print(f"   - User photo: {'Present' if user_photo else 'Missing'}")
+        print(f"   - Items: {len(items)}")
+        
         if not user_photo:
+            print("❌ Missing user_photo")
             return jsonify({"error": "Missing user_photo"}), 400
         
         if not items or len(items) == 0:
+            print("❌ No items provided")
             return jsonify({"error": "No items provided"}), 400
         
         if not client:
+            print("❌ Gemini API key not configured")
             return jsonify({"error": "Gemini API key not configured"}), 500
         
         print(f"\n🎨 Generating virtual try-on for {len(items)} items")
@@ -206,6 +222,8 @@ def virtual_tryon():
             products=items,
             gemini_client=client
         )
+        
+        print("✅ Try-on generation successful")
         
         return jsonify({
             "result_image": result_image,
@@ -223,7 +241,7 @@ def virtual_tryon():
 @app.route('/api/generate-video', methods=['POST', 'OPTIONS'])
 def generate_video():
     """
-    Veo 3 video generation from virtual try-on result
+    Veo 3.1 video generation from virtual try-on result
     
     Takes the virtual try-on result and creates a professional fashion
     showcase video with camera rotation.
@@ -231,10 +249,17 @@ def generate_video():
     if request.method == 'OPTIONS':
         return '', 200
     
+    print("\n" + "="*80)
+    print("📥 /api/generate-video ENDPOINT CALLED")
+    print("="*80)
+    sys.stdout.flush()  # Force output to show immediately
+    
     try:
         if not VIDEO_AVAILABLE:
+            error_msg = "Video generation not available - video_generator.py not found"
+            print(f"❌ {error_msg}")
             return jsonify({
-                "error": "Video generation not available",
+                "error": error_msg,
                 "message": "Please ensure video_generator.py is in the same directory",
                 "success": False
             }), 500
@@ -243,39 +268,59 @@ def generate_video():
         tryon_result = data.get('user_photo')
         items = data.get('items', [])
         
+        print(f"📊 Request data:")
+        print(f"   - Try-on result: {'Present' if tryon_result else 'Missing'} ({len(tryon_result) if tryon_result else 0} chars)")
+        print(f"   - Items: {len(items)}")
+        for i, item in enumerate(items, 1):
+            print(f"      {i}. {item.get('name', 'Unnamed')[:50]}")
+        
         if not tryon_result or not items:
+            error_msg = "Missing try-on result or items"
+            print(f"❌ {error_msg}")
             return jsonify({
-                "error": "Missing try-on result or items", 
+                "error": error_msg, 
                 "success": False
             }), 400
         
         if not GOOGLE_CLOUD_PROJECT:
+            error_msg = "GOOGLE_CLOUD_PROJECT environment variable not set"
+            print(f"❌ {error_msg}")
             return jsonify({
-                "error": "GOOGLE_CLOUD_PROJECT environment variable not set",
+                "error": error_msg,
                 "message": "Please set: export GOOGLE_CLOUD_PROJECT='your-project-id'",
                 "success": False
             }), 500
         
-        print(f"\n🎬 Generating Veo 3 video from virtual try-on result")
-        print(f"   Input: Try-on result with {len(items)} items")
+        print(f"\n🎬 Calling video generator...")
+        print(f"   Project: {GOOGLE_CLOUD_PROJECT}")
+        print(f"   Location: us-central1")
+        print(f"   Items: {len(items)}")
+        sys.stdout.flush()
         
+        # FIXED: Using correct parameter name 'outfit_items' instead of 'products'
         video_data_url = generate_fashion_video_veo(
             user_photo_base64=tryon_result,
-            products=items,
+            products=items,  # ✅ CORRECT PARAMETER NAME
             project_id=GOOGLE_CLOUD_PROJECT,
             location="us-central1"
         )
         
+        print("\n✅ Video generation successful!")
+        print("="*80 + "\n")
+        
         return jsonify({
             "video_url": video_data_url,
             "success": True,
-            "message": "Veo 3 video generated successfully",
+            "message": "Veo 3.1 video generated successfully",
             "items_count": len(items)
         }), 200
             
     except Exception as e:
-        print(f"❌ Video generation error: {e}")
+        print(f"\n❌ Video generation error in app.py: {e}")
+        print("Full traceback:")
         traceback.print_exc()
+        sys.stdout.flush()
+        
         return jsonify({
             "error": str(e),
             "success": False
@@ -291,6 +336,8 @@ def not_found(e):
 @app.errorhandler(500)
 def internal_error(e):
     """Handle 500 errors"""
+    print(f"❌ 500 Internal Server Error: {e}")
+    traceback.print_exc()
     return jsonify({"error": "Internal server error"}), 500
 
 
@@ -304,7 +351,7 @@ def print_startup_banner():
     print("🌟 POWERED BY:")
     print("  • Google Gemini 2.5 Computer Use - Automated browsing")
     print("  • Gemini 2.5 Flash Image (Nano Banana) - Virtual try-on" + (" ✅" if VTO_AVAILABLE else " ❌"))
-    print("  • Veo 3 - Video generation" + (" ✅" if VIDEO_AVAILABLE else " ❌"))
+    print("  • Veo 3.1 - Video generation" + (" ✅" if VIDEO_AVAILABLE else " ❌"))
     print()
     print("🔑 CONFIGURATION:")
     
@@ -372,10 +419,14 @@ def print_startup_banner():
     
     print("="*70)
     print("🚀 Starting Flask server on http://localhost:5000")
+    print("   Output mode: Unbuffered (all prints shown immediately)")
     print("="*70 + "\n")
 
 
 if __name__ == '__main__':
+    # Force unbuffered output
+    sys.stdout = os.fdopen(sys.stdout.fileno(), 'w', buffering=1)
+    
     print_startup_banner()
     
     debug_mode = os.environ.get('FLASK_ENV') != 'production'

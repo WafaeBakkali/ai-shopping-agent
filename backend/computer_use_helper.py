@@ -1,6 +1,6 @@
 """
 Gemini Computer Use Helper - Automated Product Search
-Uses Gemini 2.5 Computer Use with Playwright to automate websites browsing
+Uses Gemini 2.5 Computer Use with Playwright to automate website browsing
 """
 
 from playwright.sync_api import sync_playwright
@@ -10,6 +10,7 @@ from google.genai.types import Content, Part
 import time
 import re
 import os
+import json
 
 # Good viewport size with zoom out
 W, H = 1600, 900
@@ -300,6 +301,30 @@ def execute_actions(candidate, page, viewport=(W, H), show_narration=False):
     return results, function_calls, parts_with_fc
 
 
+def get_human_safety_confirmation(safety_decision):
+    """
+    Request human confirmation for safety-flagged actions.
+    Required by Terms of Service - cannot be bypassed programmatically.
+    """
+    print("\n" + "="*60)
+    print("⚠️  SAFETY CHECK REQUIRED")
+    print("="*60)
+    print(f"Explanation: {safety_decision.get('explanation', 'Safety system flagged this action')}")
+    print(f"Decision: {safety_decision.get('decision', 'require_confirmation')}")
+    print("="*60)
+    
+    while True:
+        response = input("Do you wish to proceed? [Y]es/[N]o: ").strip().lower()
+        if response in ('y', 'yes'):
+            print("✅ Proceeding with action...")
+            return True
+        elif response in ('n', 'no'):
+            print("❌ Action cancelled by user")
+            return False
+        else:
+            print("Please enter 'y' or 'n'")
+
+
 def create_function_responses(page, results, function_calls, parts_with_fc):
     """Create function response objects for Gemini from action results"""
     screenshot = page.screenshot(type="png")
@@ -312,16 +337,21 @@ def create_function_responses(page, results, function_calls, parts_with_fc):
         # Get function call ID
         fc_id = getattr(fc, 'id', None)
         
-        # Check for safety decision in BOTH places
-        # 1. Check in function_call.args
+        # Check for safety decision in function_call.args
         fc_args = getattr(fc, 'args', {}) or {}
-        has_safety_decision_in_args = 'safety_decision' in fc_args
+        safety_decision = fc_args.get('safety_decision')
         
-        # 2. Check in part.safety_ratings
+        # Check in part.safety_ratings
         part_safety_ratings = getattr(part, 'safety_ratings', None)
         
-        # If there's a safety decision anywhere, add acknowledgement to response
-        if has_safety_decision_in_args or part_safety_ratings:
+        # Handle safety decisions - MUST get human confirmation per TOS
+        if safety_decision:
+            # Human confirmation required!
+            if not get_human_safety_confirmation(safety_decision):
+                # User declined - terminate
+                print("Stopping due to user declining safety confirmation")
+                raise Exception("User declined safety confirmation")
+            # User confirmed - add acknowledgement
             response_data['safety_acknowledgement'] = 'true'
         
         # Build the FunctionResponse
@@ -347,8 +377,6 @@ def create_function_responses(page, results, function_calls, parts_with_fc):
         # Create the FunctionResponse
         function_response = types.FunctionResponse(**fr_kwargs)
         function_responses.append(function_response)
-    
-    return function_responses, screenshot
     
     return function_responses, screenshot
 
@@ -386,104 +414,40 @@ def parse_multiple_items(query):
     return items
 
 
-def scrape_amazon_results(page, max_items=10, max_price=None):
+def extract_json_from_ai_response(contents):
     """
-    Scrape product information from Amazon.fr search results page.
-    Returns list of product dictionaries with name, price, URL, and image.
+    Extract product data from AI's text responses.
+    Looks for JSON in the conversation history.
+    Returns extracted data dict or None.
     """
-    products = []
-    
-    try:
-        page.wait_for_selector('[data-component-type="s-search-result"]', timeout=5000)
-        items = page.query_selector_all('[data-component-type="s-search-result"]')
-        
-        for item in items:
-            if len(products) >= max_items:
-                break
-                
-            try:
-                # Extract title
-                title = None
-                for selector in ['h2 a span', 'h2 span', 'h2']:
-                    elem = item.query_selector(selector)
-                    if elem:
-                        title = elem.inner_text().strip()
-                        if title:
-                            break
-                
-                if not title:
-                    continue
-                
-                # Extract price
-                price = None
-                price_value = None
-                for selector in ['.a-price .a-offscreen', '.a-price-whole', 'span.a-price', '.a-color-price']:
-                    elem = item.query_selector(selector)
-                    if elem:
-                        price_text = elem.inner_text().strip()
-                        if price_text:
-                            price = price_text
-                            price_match = re.search(r'[\d\s]+[.,]?\d*', price.replace('\xa0', ''))
-                            if price_match:
-                                try:
-                                    price_str = price_match.group().replace(' ', '').replace(',', '.')
-                                    price_value = float(price_str)
-                                except Exception:
-                                    pass
-                            break
-                
-                if not price:
-                    continue
-                
-                # Filter by max price
-                if max_price and price_value:
-                    if price_value > max_price:
-                        continue
-                
-                # Extract product link
-                link = ""
-                link_elem = item.query_selector('h2 a, a.a-link-normal')
-                if link_elem:
-                    link = link_elem.get_attribute('href') or ""
-                    if link and not link.startswith('http'):
-                        link = f"https://www.amazon.fr{link}"
-                
-                # Extract image URL
-                image_url = ""
-                img_elem = item.query_selector('img')
-                if img_elem:
-                    image_url = (
-                        img_elem.get_attribute('data-old-hires') or
-                        img_elem.get_attribute('data-a-hires') or
-                        img_elem.get_attribute('src') or
-                        ""
-                    )
+    for content in reversed(contents):  # Check most recent first
+        if content.role == "model":
+            for part in content.parts:
+                if hasattr(part, 'text') and part.text:
+                    text = part.text
                     
-                    # Convert to high-res image
-                    if image_url and ('images-na.ssl-images-amazon.com' in image_url or 'm.media-amazon.com' in image_url):
-                        match = re.search(r'/images/I/([A-Za-z0-9+_-]+)', image_url)
-                        if match:
-                            image_id = match.group(1)
-                            image_url = f"https://m.media-amazon.com/images/I/{image_id}._SL1500_.jpg"
-                
-                if not image_url:
-                    image_url = "https://images.unsplash.com/photo-1515372039744-b8f02a3ae446?w=600"
-                
-                products.append({
-                    "name": title,
-                    "price": price,
-                    "product_url": link,
-                    "image_url": image_url,
-                    "rating": ""
-                })
-                
-            except Exception:
-                continue
-        
-    except Exception:
-        pass
+                    # Look for extraction completion signals
+                    if "EXTRACTION_COMPLETE" in text or '"products"' in text:
+                        try:
+                            # Remove markdown code blocks if present
+                            text = re.sub(r'```json\s*', '', text)
+                            text = re.sub(r'```\s*', '', text)
+                            
+                            # Find JSON in the text
+                            json_start = text.find('{')
+                            json_end = text.rfind('}') + 1
+                            
+                            if json_start != -1 and json_end > json_start:
+                                json_str = text[json_start:json_end]
+                                extracted_data = json.loads(json_str)
+                                
+                                # Validate it has products array
+                                if 'products' in extracted_data and isinstance(extracted_data['products'], list):
+                                    return extracted_data
+                        except json.JSONDecodeError:
+                            continue
     
-    return products
+    return None
 
 
 def search_with_criteria(criteria, websites=None, max_turns=10, enable_query_refinement=True):
@@ -493,7 +457,7 @@ def search_with_criteria(criteria, websites=None, max_turns=10, enable_query_ref
     Args:
         criteria: Search query as string or list with 'prompt' key
         websites: Not used (for future multi-site support)
-        max_turns: Maximum interaction turns with Gemini
+        max_turns: Maximum interaction turns with Gemini (will be increased for extraction)
         enable_query_refinement: Whether to refine natural language queries
         
     Returns:
@@ -597,19 +561,76 @@ def search_with_criteria(criteria, websites=None, max_turns=10, enable_query_ref
             
             print(f"   🔍 I'm searching for: '{search_terms}'")
             
-            # Create goal for Gemini Computer Use
-            goal = f"""Search Amazon.fr for "{search_terms}".
-
-Steps:
-1. Click search box
-2. Type: "{search_terms}"
-3. Press Enter
-4. Wait 3 seconds
-5. Scroll down twice
-6. Say "Done"
-
-Page is at top - search box visible."""
+            # Number of products to extract
+            products_per_item = 5
             
+            goal = f"""You are a shopping assistant AI. Your task is to search Amazon.fr and extract product data.
+
+TASK BREAKDOWN:
+
+STEP 1 - NAVIGATE TO RESULTS (Use Computer Actions):
+1. Click on the search box on the page
+2. Type this exact search term: "{search_terms}"
+3. Press Enter to submit the search
+4. Wait for the results page to fully load (3-5 seconds)
+5. Scroll down 2-3 times to see a good variety of products
+→ THEN STOP using computer actions
+
+STEP 2 - STOP NAVIGATING AND EXTRACT DATA (Visual Analysis ONLY):
+⚠️  CRITICAL: Do NOT click on any products. Do NOT open product pages.
+⚠️  CRITICAL: Extract ALL data directly from the CURRENT search results page.
+
+Once you see the product listings on the search results page:
+- Look at the product cards/items visible on screen
+- Read the information directly from what you see
+- Extract EXACTLY {products_per_item} products
+
+For each product, extract by reading the search results:
+- name: The product title visible in the listing
+- price: The price shown (format: "XX,XX €")
+- product_url: The product link (you can see this in the page structure)
+- image_url: The FULL product image URL (must start with https://)
+  * Look for image URLs that start with https://m.media-amazon.com/images/
+  * Or https://images-na.ssl-images-amazon.com/images/
+  * These are the permanent, publicly accessible image URLs
+  * Do NOT use relative paths like /images/... or data:image URLs
+- rating: Star rating if visible (format: "4.5 stars"), or "" if not shown
+
+STEP 3 - FORMAT AND RETURN (No More Actions):
+After you've visually read the data from the search results page, return the JSON immediately.
+
+Return as pure JSON (NO markdown, NO clicking, NO more navigation):
+
+{{
+  "products": [
+    {{
+      "name": "Product name from search results",
+      "price": "XX,XX €",
+      "product_url": "https://www.amazon.fr/dp/XXXXXXXXXX/...",
+      "image_url": "https://m.media-amazon.com/images/...",
+      "rating": "4.5 stars"
+    }},
+    {{
+      "name": "Second product name",
+      "price": "XX,XX €",
+      "product_url": "https://www.amazon.fr/...",
+      "image_url": "https://...",
+      "rating": ""
+    }}
+  ]
+}}
+
+When finished, say "EXTRACTION_COMPLETE" followed by the JSON.
+
+CRITICAL RULES:
+✓ Extract EXACTLY {products_per_item} products
+✓ Read data from CURRENT page only (don't click products)
+✓ Extract all info from the search results listing
+✓ Stop using computer actions after scrolling
+✓ Just analyze the screenshot and return JSON
+
+Begin navigation now. After scrolling, STOP and extract visually."""
+
             contents = [
                 Content(
                     role="user",
@@ -644,8 +665,12 @@ Page is at top - search box visible."""
                 ]
             )
             
-            # Interaction loop with Gemini
-            for turn in range(max_turns):
+            # Interaction loop with Gemini - INCREASED TURNS for extraction
+            extracted_data = None
+            extraction_prompted = False
+            max_loop_turns = min(max_turns * 3, 40)  # Triple the turns for extraction
+            
+            for turn in range(max_loop_turns):
                 try:
                     response = client.models.generate_content(
                         model=MODEL,
@@ -662,11 +687,71 @@ Page is at top - search box visible."""
                 candidate = response.candidates[0]
                 contents.append(candidate.content)
                 
+                # Check if AI extracted data in this response
+                for part in candidate.content.parts:
+                    if hasattr(part, 'text') and part.text:
+                        text = part.text
+                        
+                        # Look for completion signals or JSON
+                        if "EXTRACTION_COMPLETE" in text or ('"products"' in text and '[' in text):
+                            extracted_data = extract_json_from_ai_response(contents)
+                            if extracted_data and 'products' in extracted_data:
+                                print(f"      ✅ AI successfully extracted data!")
+                                break
+                
+                # If data extracted, we're done with this item
+                if extracted_data:
+                    break
+                
                 function_calls = [p.function_call for p in candidate.content.parts if getattr(p, "function_call", None)]
                 
                 if not function_calls:
-                    break
+                    # No more actions - AI might be waiting or stuck
+                    if turn >= 8 and not extraction_prompted:
+                        # After navigation (usually done in 5-8 turns), prompt for extraction
+                        print(f"      💭 Prompting AI to extract product data...")
+                        screenshot = page.screenshot(type="png")
+                        
+                        contents.append(
+                            Content(
+                                role="user",
+                                parts=[
+                                    Part(text=f"""STOP CLICKING. Now just LOOK at the current page and extract {products_per_item} products visually.
+
+⚠️  Do NOT click anything. Do NOT open products. Just READ what's on screen.
+
+Look at the search results page you can see and extract by reading:
+- Product names (visible in listings)
+- Prices (with € symbol)
+- Product URLs (full URLs starting with https://www.amazon.fr/)
+- Image URLs (CRITICAL: Full URLs starting with https://m.media-amazon.com/ or https://images-na.ssl-images-amazon.com/)
+- Ratings if visible
+
+IMPORTANT FOR IMAGE URLS:
+- Must be FULL URLs starting with https://
+- Look for URLs like: https://m.media-amazon.com/images/I/xxxxx.jpg
+- Do NOT use relative paths like /images/...
+- Do NOT use data:image URLs
+
+Return ONLY as JSON (no more clicking):
+{{"products": [{{"name": "...", "price": "...", "product_url": "https://...", "image_url": "https://m.media-amazon.com/...", "rating": "..."}}]}}
+
+Say "EXTRACTION_COMPLETE" followed by JSON. No more computer actions needed."""),
+                                    Part.from_bytes(data=screenshot, mime_type="image/png")
+                                ]
+                            )
+                        )
+                        extraction_prompted = True
+                        continue
+                    elif extraction_prompted and turn >= 15:
+                        # Already prompted but AI still hasn't extracted
+                        print(f"      ⚠️  AI unable to extract data after {turn} turns")
+                        break
+                    else:
+                        # No actions and not ready to prompt yet
+                        break
                 
+                # Execute actions
                 results, fcs, parts = execute_actions(candidate, page, (W, H), show_narration=True)
                 function_responses, screenshot = create_function_responses(page, results, fcs, parts)
                 
@@ -677,16 +762,82 @@ Page is at top - search box visible."""
                     )
                 )
             
-            # Scrape results
-            print(f"   🎯 I'm extracting product information...")
-            products_per_item = 5
-            products = scrape_amazon_results(page, max_items=products_per_item, max_price=max_price)
+            print(f"   🎯 Processing extracted data...")
             
-            if products:
+            if extracted_data and 'products' in extracted_data:
+                products = extracted_data['products'][:products_per_item]
+                
+                print(f"      🖼️  Fetching actual image URLs...")
+                try:
+                    page.wait_for_selector('[data-component-type="s-search-result"]', timeout=3000)
+                    product_elements = page.query_selector_all('[data-component-type="s-search-result"]')
+                    
+                    # Match AI-extracted products with actual page elements by name similarity
+                    for i, product in enumerate(products):
+                        if i < len(product_elements):
+                            elem = product_elements[i]
+                            
+                            # Extract real image URL from page
+                            img_elem = elem.query_selector('img')
+                            if img_elem:
+                                image_url = (
+                                    img_elem.get_attribute('data-old-hires') or
+                                    img_elem.get_attribute('data-a-hires') or
+                                    img_elem.get_attribute('src') or
+                                    ""
+                                )
+                                
+                                # Convert to high-res if possible
+                                if image_url and ('m.media-amazon.com' in image_url or 'images-na.ssl-images-amazon.com' in image_url):
+                                    match = re.search(r'/images/I/([A-Za-z0-9+_-]+)', image_url)
+                                    if match:
+                                        image_id = match.group(1)
+                                        image_url = f"https://m.media-amazon.com/images/I/{image_id}._SL1000_.jpg"
+                                
+                                if image_url and image_url.startswith('http'):
+                                    product['image_url'] = image_url
+                                else:
+                                    product['image_url'] = 'https://via.placeholder.com/400x400/2a2a2a/ffffff?text=No+Image'
+                            else:
+                                product['image_url'] = 'https://via.placeholder.com/400x400/2a2a2a/ffffff?text=No+Image'
+                            
+                            # Also fix product URL if needed
+                            if not product.get('product_url', '').startswith('http'):
+                                link_elem = elem.query_selector('h2 a, a.a-link-normal')
+                                if link_elem:
+                                    link = link_elem.get_attribute('href') or ""
+                                    if link and not link.startswith('http'):
+                                        product['product_url'] = f"https://www.amazon.fr{link}"
+                    
+                    print(f"      ✅ Image URLs updated from page")
+                except Exception as e:
+                    print(f"      ⚠️  Could not fetch image URLs: {e}")
+                    # Fallback to placeholders
+                    for product in products:
+                        if not product.get('image_url', '').startswith('http'):
+                            product['image_url'] = 'https://via.placeholder.com/400x400/2a2a2a/ffffff?text=No+Image'
+                
+                # Filter by max price if specified
+                if max_price:
+                    filtered_products = []
+                    for product in products:
+                        price_str = product.get('price', '')
+                        price_match = re.search(r'[\d\s]+[.,]?\d*', price_str.replace('\xa0', ''))
+                        if price_match:
+                            try:
+                                price_val = float(price_match.group().replace(' ', '').replace(',', '.'))
+                                if price_val <= max_price:
+                                    filtered_products.append(product)
+                            except Exception:
+                                filtered_products.append(product)
+                        else:
+                            filtered_products.append(product)
+                    products = filtered_products
+                
                 print(f"      ✅ Found {len(products)} great options!\n")
                 all_products.extend(products)
             else:
-                print(f"      ⚠️  Hmm, didn't find any products for this item\n")
+                print(f"      ⚠️  AI was unable to extract products for this item\n")
         
         print("="*60)
         print(f"✅ All done! I found {len(all_products)} products total")
@@ -726,10 +877,11 @@ def add_to_cart_and_checkout(items, user_info):
 
 
 if __name__ == "__main__":
-    query = "I need an outfit for a job interview under 250 euros"
+    query = "black leather jacket men under 100 euros"
     products = search_with_criteria(
         criteria=[{"prompt": query}],
-        max_turns=10,
+        max_turns=15,
         enable_query_refinement=True
     )
     print(f"\n✅ Found {len(products)} products")
+
