@@ -1,4 +1,4 @@
-# 🤖 AI Shopping Assistant
+# 🤖 AI Shopping Workflow
 
 An end-to-end AI-powered shopping experience combining Google Gemini 2.5 Computer Use, Gemini 2.5 Flash Image (Nano Banana), and Veo 3.1.
 
